@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "jest --verbose"
   },
   "author": "Matheus Gritz",
   "license": "MIT",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "eslint": "^7.4.0",
+    "jest": "^26.1.0",
     "nodemon": "^2.0.4"
   }
 }
