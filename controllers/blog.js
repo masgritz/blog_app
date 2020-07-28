@@ -50,7 +50,12 @@ blogRouter.put('/:id', async (req, res) => {
   res.send(updatedBlog)
 })
 
-blogRouter.delete('/:id', async (req, res) => {
+blogRouter.delete('/:id', auth, async (req, res) => {
+  const blogToDelete = await Blog.findById(req.params.id)
+
+  if (!blogToDelete.user.equals(req.user._id)) {
+    return res.status(401).end()
+  }
   await Blog.findByIdAndRemove(req.params.id)
   res.status(204).end()
 })
