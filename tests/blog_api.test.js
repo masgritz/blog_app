@@ -1,10 +1,12 @@
 const supertest = require('supertest')
 const mongoose = require('mongoose')
+const bcrypt = require('bcrypt')
 const helper = require('./test_helper')
 const app = require('../app')
 const api = supertest(app)
 
 const Blog = require('../models/blog')
+const User = require('../models/user')
 
 beforeEach(async () => {
   await Blog.deleteMany({})
@@ -30,37 +32,80 @@ test('blogs have a property named "id"', async () => {
   expect(res.body[0].id).toBeDefined()
 })
 
-test('a valid blog can be added to database', async () => {
-  const testBlog = {
-    title: 'This is a test post',
-    author: 'Test',
-    url: '/test-blog'
-  }
+describe('tests that require an authentication token', () => {
+  beforeEach(async () => {
+    await User.deleteMany({})
 
-  await api
-    .post('/api/blogs')
-    .send(testBlog)
-    .expect(200)
-    .expect('Content-Type', /application\/json/)
+    const passwordHash = await bcrypt.hash('sekret', 10)
+    const user = new User({ username: 'root', passwordHash })
 
-  const blogsAtEnd = await helper.blogsInDb()
-  expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length + 1)
+    await user.save()
+  })
+  test('a valid blog can be added to database', async () => {
+    const req = await api
+      .post('/api/login')
+      .send({ username: 'root', password: 'sekret' })
 
-  const titles = blogsAtEnd.map(b => b.title)
-  expect(titles).toContain('This is a test post')
-})
+    const testBlog = {
+      title: 'This is a test post',
+      author: 'Test',
+      url: '/test-blog'
+    }
 
-test('an invalid blog returns a 400 error', async () => {
-  const testBlog = {
-    title: '',
-    author: '',
-    url: ''
-  }
+    await api
+      .post('/api/blogs')
+      .auth(req.body.token, { type: 'bearer' })
+      .send(testBlog)
+      .expect(200)
+      .expect('Content-Type', /application\/json/)
 
-  await api
-    .post('/api/blogs')
-    .send(testBlog)
-    .expect(400)
+    const blogsAtEnd = await helper.blogsInDb()
+    expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length + 1)
+
+    const titles = blogsAtEnd.map(b => b.title)
+    expect(titles).toContain('This is a test post')
+  })
+
+  test('login with incorrect credentials returns a 401 status code', async () => {
+    await api
+      .post('/api/login')
+      .send({ username: 'root', password: 'sekreto' })
+      .expect(401)
+  })
+
+  test('adding a blog unathenticated should return a 401 status code', async () => {
+    const testBlog = {
+      title: 'This is another test post',
+      author: 'Test',
+      url: '/test-blog-vengence'
+    }
+
+    await api
+      .post('/api/blogs')
+      .send(testBlog)
+      .expect(401)
+
+    const blogsAtEnd = await helper.blogsInDb()
+    expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length)
+  })
+
+  test('an invalid blog returns a 400 error', async () => {
+    const req = await api
+      .post('/api/login')
+      .send({ username: 'root', password: 'sekret' })
+
+    const testBlog = {
+      title: '',
+      author: '',
+      url: ''
+    }
+
+    await api
+      .post('/api/blogs')
+      .auth(req.body.token, { type: 'bearer' })
+      .send(testBlog)
+      .expect(400)
+  })
 })
 
 afterAll(() => {
